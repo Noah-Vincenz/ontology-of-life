@@ -1,0 +1,101 @@
+name: Test
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+jobs:
+  determine-which-setup-used:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      setup-used: ${{ steps.determine-setup-used.outputs.setup-used }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Check setup used
+        id: determine-setup-used
+        run: |
+          if [[ -n $(git diff --merge-base origin/main --name-only java-maven) ]]; then
+            echo "setup-used=java-maven" >> $GITHUB_OUTPUT
+          elif [[ -n $(git diff --merge-base origin/main --name-only java-gradle) ]]; then
+            echo "setup-used=java-gradle" >> $GITHUB_OUTPUT
+          elif [[ -n $(git diff --merge-base origin/main --name-only python) ]]; then
+            echo "setup-used=python" >> $GITHUB_OUTPUT
+          else
+            echo "No files changes"
+            echo "setup-used=none" >> $GITHUB_OUTPUT
+          fi
+
+  java-maven-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: determine-which-setup-used
+    if: needs.determine-which-setup-used.outputs.setup-used == 'java-maven'
+    defaults:
+      run:
+        working-directory: java-maven
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: adopt
+          cache: maven
+      - name: Lint
+        run: mvn com.coveo:fmt-maven-plugin:check
+      - name: Build
+        run: mvn install -DskipTests
+      - name: Run tests
+        run: mvn test
+
+  java-gradle-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: determine-which-setup-used
+    if: needs.determine-which-setup-used.outputs.setup-used == 'java-gradle'
+    defaults:
+      run:
+        working-directory: java-gradle
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: adopt
+          cache: gradle
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@e6e38bacfdf1a337459f332974bb2327a31aaf4b
+      - name: Lint
+        run: ./gradlew spotlessJavaCheck
+      - name: Build
+        run: ./gradlew build -x test
+      - name: Run tests
+        run: ./gradlew test
+
+  python-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: determine-which-setup-used
+    if: needs.determine-which-setup-used.outputs.setup-used == 'python'
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Set up Pipenv
+        run: pip install pipenv==2021.5.29
+      - name: Install packages
+        run: pipenv sync --dev
+      - name: Lint
+        run: pipenv run fmt-check
+      - name: Run tests
+        run: pipenv run test

@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    id "com.diffplug.spotless" version "6.0.4"
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    slf4jVersion = "2.0.0-alpha1"
+    junitVersion = "5.8.2"
+}
+
+dependencies {
+    implementation "org.slf4j:slf4j-simple:$slf4jVersion"
+    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+    testImplementation("org.junit.jupiter:junit-jupiter:$junitVersion")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:$junitVersion")
+}
+
+group = 'some.group'
+version = '1.0-SNAPSHOT'
+description = 'ontology-of-life'
+java.sourceCompatibility = JavaVersion.VERSION_17
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "PASSED", "SKIPPED", "FAILED"
+    }
+}
+
+spotless {
+    java {
+        googleJavaFormat()
+    }
+}
